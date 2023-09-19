@@ -4,8 +4,7 @@ use cosmwasm_std::Decimal256;
 use cosmwasm_std::{
     Coin, DepsMut, Env, MessageInfo, Reply, Response, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
 };
-use osmosis_std::types::osmosis::concentratedliquidity::v1beta1::MsgCreatePosition;
-use osmosis_std::types::osmosis::concentratedliquidity::v1beta1::Pool;
+use osmosis_std::types::osmosis::concentratedliquidity::v1beta1::{MsgCreatePosition, Pool};
 use osmosis_std::types::osmosis::poolmanager::v1beta1::MsgSwapExactAmountInResponse;
 use osmosis_std::types::osmosis::poolmanager::v1beta1::PoolmanagerQuerier;
 use osmosis_std::types::osmosis::poolmanager::v1beta1::{MsgSwapExactAmountIn, SwapAmountInRoute};
@@ -374,40 +373,39 @@ fn iterative_naive_approach(
     upper_tick: i64,
     lower_tick: i64,
 ) -> Result<Coin, ContractError> {
-    // We are assuming here we have enough liquidity to swap the entire amount of token_in
-    // Will change later
-    let token_0_in = token_to_swap.denom == pool.token0;
-    let token_1_in = token_to_swap.denom == pool.token1;
+    let is_token_0_in = token_to_swap.denom == pool.token0;
+    let is_token_1_in = token_to_swap.denom == pool.token1;
     let token_provided_dec =
         Decimal256::from_str(token_initially_provided.amount.to_string().as_str())?;
 
-    let original = pool.current_sqrt_price.to_string();
-    let parts: Vec<&str> = original.split('.').collect();
-    let integer_part = parts[0];
-    let fractional_part = &parts[1][0..18]; // Take only first 18 digits after the decimal point
-    let rounded = format!("{}.{}", integer_part, fractional_part);
+    // Round the current sqrt price to 18 decimal places
+    let cur_sqrt_price_unrounded = pool.current_sqrt_price.to_string();
+    let split_cur_sqrt_price_unrounded: Vec<&str> = cur_sqrt_price_unrounded.split('.').collect();
+    let integer_part = split_cur_sqrt_price_unrounded[0];
+    let fractional_part = &split_cur_sqrt_price_unrounded[1][0..18]; // Take only first 18 digits after the decimal point
+    let cur_sqrt_price_rounded_str = format!("{}.{}", integer_part, fractional_part);
 
-    let pool_cur_sqrt_price = Decimal256::from_str(&rounded).unwrap();
-
+    let cur_sqrt_price_rounded = Decimal256::from_str(&cur_sqrt_price_rounded_str).unwrap();
     let spread_factor = Decimal256::from_str(pool.spread_factor.as_str())?;
 
     // Determine what the next sqrt price will be after the swap
+    // This is a naive approach that does not take into consideration the liquidity outside of the current tick.
     let sqrt_price_next: Decimal256;
-    if token_0_in {
+    if is_token_0_in {
         sqrt_price_next = get_next_sqrt_price_from_amount0_in_round_up(
             Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-            pool_cur_sqrt_price,
+            cur_sqrt_price_rounded,
             Decimal256::from_str(token_to_swap.amount.to_string().as_str()).unwrap(),
         );
     } else {
         sqrt_price_next = get_next_sqrt_price_from_amount1_in_round_down(
             Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-            pool_cur_sqrt_price,
+            cur_sqrt_price_rounded,
             Decimal256::from_str(token_to_swap.amount.to_string().as_str()).unwrap(),
         );
     }
 
-    // Transform the sqrt price into a price
+    // Transform the sqrt price next into price next
     let price_next = sqrt_price_to_price(sqrt_price_next);
 
     // Determine the tick this will bring us to
@@ -421,10 +419,10 @@ fn iterative_naive_approach(
         "asset_0_ratio_new {asset_0_ratio_new:?}, asset_1_ratio_new {asset_1_ratio_new:?}"
     ));
 
-    if token_0_in {
+    if is_token_0_in {
         let amount_1_delta = calc_amount_one_delta(
             Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-            pool_cur_sqrt_price,
+            cur_sqrt_price_rounded,
             sqrt_price_next,
             false,
         );
@@ -437,7 +435,7 @@ fn iterative_naive_approach(
             .checked_sub(amt0_to_swap.try_into()?);
         let sqrt_price_next = get_next_sqrt_price_from_amount0_in_round_up(
             Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-            pool_cur_sqrt_price,
+            cur_sqrt_price_rounded,
             Decimal256::from_str(amt0_to_swap.to_string().as_str()).unwrap(),
         );
         let price_next = sqrt_price_to_price(sqrt_price_next);
@@ -452,10 +450,10 @@ fn iterative_naive_approach(
             denom: token_to_swap.denom,
             amount: amt0_to_swap.try_into()?,
         });
-    } else if token_1_in {
+    } else if is_token_1_in {
         let amount_0_delta = calc_amount_zero_delta(
             Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-            pool_cur_sqrt_price,
+            cur_sqrt_price_rounded,
             sqrt_price_next,
             true,
         );
@@ -469,7 +467,7 @@ fn iterative_naive_approach(
             .checked_sub(amt1_to_swap.try_into()?);
         let sqrt_price_next = get_next_sqrt_price_from_amount1_in_round_down(
             Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-            pool_cur_sqrt_price,
+            cur_sqrt_price_rounded,
             Decimal256::from_str(amt1_to_swap.to_string().as_str()).unwrap(),
         );
         let price_next = sqrt_price_to_price(sqrt_price_next);
@@ -494,161 +492,3 @@ fn iterative_naive_approach(
 fn sqrt_price_to_price(sqrt_price: Decimal256) -> Decimal256 {
     return sqrt_price * sqrt_price;
 }
-
-// fn iterative_naive_approach_new(
-//     deps: &mut DepsMut,
-//     // liquidity: Decimal,
-//     // token_out_denom: String,
-//     // sqrt_price_current: Decimal,
-//     // sqrt_price_next: Decimal,
-//     mut token_to_swap: Coin,
-//     token_initially_provided: Coin,
-//     pool: Pool,
-//     upper_tick: i64,
-//     lower_tick: i64,
-//     loop_limit: usize,
-// ) -> Result<Coin, ContractError> {
-//     let token_0_in = token_to_swap.denom == pool.token0;
-//     let token_1_in = token_to_swap.denom == pool.token1;
-//     let token_provided_dec =
-//         Decimal256::from_str(token_initially_provided.amount.to_string().as_str())?;
-//     let threshold = Decimal256::from_str("0.000001")?;
-
-//     let original = pool.current_sqrt_price.to_string();
-//     let parts: Vec<&str> = original.split('.').collect();
-//     let integer_part = parts[0];
-//     let fractional_part = &parts[1][0..18]; // Take only first 18 digits after the decimal point
-//     let rounded = format!("{}.{}", integer_part, fractional_part);
-
-//     let pool_cur_sqrt_price = Decimal256::from_str(&rounded).unwrap();
-
-//     let spread_factor = Decimal256::from_str(pool.spread_factor.as_str())?;
-
-//     let mut loop_counter = 0;
-//     loop {
-//         loop_counter += 1;
-
-//         if loop_counter > loop_limit {
-//             return Ok(Coin {
-//                 denom: token_to_swap.denom,
-//                 amount: token_to_swap.amount,
-//             });
-//         }
-
-//         let sqrt_price_next: Decimal256;
-//         if token_0_in {
-//             sqrt_price_next = get_next_sqrt_price_from_amount0_in_round_up(
-//                 &deps,
-//                 Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-//                 pool_cur_sqrt_price,
-//                 Decimal256::from_str(token_to_swap.amount.to_string().as_str()).unwrap(),
-//             );
-//         } else {
-//             sqrt_price_next = get_next_sqrt_price_from_amount1_in_round_down(
-//                 &deps,
-//                 Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-//                 pool_cur_sqrt_price,
-//                 Decimal256::from_str(token_to_swap.amount.to_string().as_str()).unwrap(),
-//             );
-//         }
-
-//         let price_next = sqrt_price_to_price(sqrt_price_next);
-//         let tick_next = price_to_tick(deps.storage, price_next)?;
-//         deps.api.debug(&format!("tick_next {tick_next:?}"));
-
-//         let (asset_0_ratio_new, asset_1_ratio_new) =
-//             calc_asset_ratio_from_ticks(upper_tick, tick_next as i64, lower_tick)?;
-
-//         let ratio_difference_abs: Decimal256;
-//         if token_0_in {
-//             let amount_1_delta = calc_amount_one_delta(
-//                 Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-//                 pool_cur_sqrt_price,
-//                 sqrt_price_next,
-//                 false,
-//             );
-//             let amt0_to_swap = token_provided_dec
-//                 .checked_mul(asset_1_ratio_new.checked_add(spread_factor)?)?
-//                 .to_uint_floor();
-//             // let amount_1_delta_rounded = amount_1_delta.round_dp(18);
-//             // let amount_1_delta_256 =
-//             //     Decimal256::from_str(&amount_1_delta_rounded.to_string().as_str())?;
-//             let amt0_to_swap_dec = Decimal256::from_str(&amt0_to_swap.to_string().as_str())?;
-
-//             let internal_ratio =
-//                 amount_1_delta.checked_div(amt0_to_swap_dec.checked_add(amount_1_delta)?)?;
-//             // let internal_ratio_dec256 = Decimal256::from_str(&internal_ratio.to_string().as_str())?;
-//             let ratio_diff = internal_ratio.checked_sub(asset_1_ratio_new)?;
-//             ratio_difference_abs = internal_ratio.abs_diff(asset_1_ratio_new);
-
-//             if ratio_difference_abs <= threshold {
-//                 let amt_debug = token_to_swap.amount;
-//                 deps.api.debug(&format!("token_to_swap {amt_debug:?}"));
-//                 deps.api
-//                     .debug(&format!("asset_0_ratio_new {asset_0_ratio_new:?}"));
-//                 deps.api
-//                     .debug(&format!("asset_1_ratio_new {asset_1_ratio_new:?}"));
-//                 return Ok(Coin {
-//                     denom: token_to_swap.denom,
-//                     amount: amt0_to_swap.try_into()?,
-//                 });
-//             }
-//             deps.api
-//                 .debug(&format!("ratio_difference {ratio_difference_abs:?}"));
-//             deps.api
-//                 .debug(&format!("internal_ratio {internal_ratio:?}"));
-//             deps.api
-//                 .debug(&format!("asset_1_ratio_new {asset_1_ratio_new:?}"));
-
-//             if ratio_diff < Decimal256::zero() {
-//                 token_to_swap.amount = token_to_swap.amount.checked_add(Uint128::one())?;
-//             } else {
-//                 token_to_swap.amount = token_to_swap.amount.checked_sub(Uint128::one())?;
-//             }
-//         } else if token_1_in {
-//             let amount_0_delta = calc_amount_zero_delta(
-//                 Decimal256::from_str(pool.current_tick_liquidity.as_str()).unwrap(),
-//                 pool_cur_sqrt_price,
-//                 sqrt_price_next,
-//                 true,
-//             );
-
-//             let amt1_to_swap = token_provided_dec
-//                 .checked_mul(asset_0_ratio_new.checked_add(spread_factor)?)?
-//                 .to_uint_floor();
-//             // let amount_1_delta_rounded = amount_1_delta.round_dp(18);
-//             // let amount_1_delta_256 =
-//             //     Decimal256::from_str(&amount_1_delta_rounded.to_string().as_str())?;
-//             let amt1_to_swap_dec = Decimal256::from_str(&amt1_to_swap.to_string().as_str())?;
-
-//             let internal_ratio =
-//                 amount_0_delta.checked_div(amt1_to_swap_dec.checked_add(amount_0_delta)?)?;
-//             // let internal_ratio_dec256 = Decimal256::from_str(&internal_ratio.to_string().as_str())?;
-//             let ratio_diff = internal_ratio.checked_sub(asset_0_ratio_new)?;
-//             ratio_difference_abs = internal_ratio.abs_diff(asset_0_ratio_new);
-
-//             if ratio_difference_abs <= threshold {
-//                 return Ok(Coin {
-//                     denom: token_to_swap.denom,
-//                     amount: amt1_to_swap.try_into()?,
-//                 });
-//             }
-//             deps.api
-//                 .debug(&format!("ratio_difference {ratio_difference_abs:?}"));
-//             deps.api
-//                 .debug(&format!("internal_ratio {internal_ratio:?}"));
-//             deps.api
-//                 .debug(&format!("asset_0_ratio_new {asset_0_ratio_new:?}"));
-
-//             if ratio_diff < Decimal256::zero() {
-//                 token_to_swap.amount = token_to_swap.amount.checked_add(Uint128::one())?;
-//             } else {
-//                 token_to_swap.amount = token_to_swap.amount.checked_sub(Uint128::one())?;
-//             }
-//         } else {
-//             return Err(ContractError::DenomNotInPool {
-//                 provided_denom: token_to_swap.denom,
-//             });
-//         }
-//     }
-// }

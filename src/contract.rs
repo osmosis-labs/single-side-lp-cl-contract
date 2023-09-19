@@ -75,7 +75,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
         // get intermediate swap reply state. Error if not found.
         let swap_msg_state = SWAP_REPLY_STATES.load(deps.storage, msg.id)?;
 
-        // prune intermedate state
+        // prune intermediate state
         SWAP_REPLY_STATES.remove(deps.storage, msg.id);
 
         // call reply function to handle the swap return
