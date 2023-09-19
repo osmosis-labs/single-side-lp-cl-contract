@@ -69,7 +69,8 @@ impl<'a> TestEnvBuilder<'a> {
         let pools = cl.query_pools(&PoolsRequest { pagination: None }).unwrap();
         let pool = Pool::decode(pools.pools[0].value.as_slice()).unwrap();
 
-        // create a basic position on the pool
+        // create a normal distribution of liquidity, where more liquidity is concentrated
+        // around the current price
         let initial_position = MsgCreatePosition {
             pool_id: pool.id,
             sender: admin.address(),
@@ -78,12 +79,56 @@ impl<'a> TestEnvBuilder<'a> {
             tokens_provided: vec![
                 cosmwasm_std::Coin {
                     denom: UFOO.to_string(),
-                    amount: Uint128::from(100000000u128),
+                    amount: Uint128::from(1000000000u128),
                 }
                 .into(),
                 cosmwasm_std::Coin {
                     denom: UBAR.to_string(),
-                    amount: Uint128::from(100000000u128),
+                    amount: Uint128::from(1000000000u128),
+                }
+                .into(),
+            ],
+            token_min_amount0: "1".to_string(),
+            token_min_amount1: "1".to_string(),
+        };
+        let _position = cl.create_position(initial_position, &admin).unwrap();
+
+        let initial_position = MsgCreatePosition {
+            pool_id: pool.id,
+            sender: admin.address(),
+            lower_tick: -10000,
+            upper_tick: 100000,
+            tokens_provided: vec![
+                cosmwasm_std::Coin {
+                    denom: UFOO.to_string(),
+                    amount: Uint128::from(1000000000u128),
+                }
+                .into(),
+                cosmwasm_std::Coin {
+                    denom: UBAR.to_string(),
+                    amount: Uint128::from(1000000000u128),
+                }
+                .into(),
+            ],
+            token_min_amount0: "1".to_string(),
+            token_min_amount1: "1".to_string(),
+        };
+        let _position = cl.create_position(initial_position, &admin).unwrap();
+
+        let initial_position = MsgCreatePosition {
+            pool_id: pool.id,
+            sender: admin.address(),
+            lower_tick: -100,
+            upper_tick: 1000,
+            tokens_provided: vec![
+                cosmwasm_std::Coin {
+                    denom: UFOO.to_string(),
+                    amount: Uint128::from(1000000000u128),
+                }
+                .into(),
+                cosmwasm_std::Coin {
+                    denom: UBAR.to_string(),
+                    amount: Uint128::from(1000000000u128),
                 }
                 .into(),
             ],

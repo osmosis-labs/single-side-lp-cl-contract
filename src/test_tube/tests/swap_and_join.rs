@@ -17,7 +17,7 @@ mod tests {
 
         let alice = app
             .init_account(&[
-                Coin::new(1_000_000, UFOO),
+                Coin::new(100_000_000, UFOO),
                 Coin::new(1_000_000_000_000, "uosmo"),
             ])
             .unwrap();
@@ -43,28 +43,15 @@ mod tests {
         println!("{:?}", pool);
         println!();
 
-        // let resp = cl.query_liquidity_net_in_direction(&LiquidityNetInDirectionRequest {
-        //     token_in: UFOO.to_string(),
-        //     pool_id: 1,
-        //     bound_tick: -1100,
-        //     start_tick: 100,
-        //     use_cur_tick: true,
-        //     use_no_bound: true,
-        // });
-
-        // println!("{:?}", resp);
-        // println!();
-        // END: Debug lines for testing
-
         t.single_sided_lp_cl
             .execute(
                 &ExecuteMsg::SingleSidedSwapAndJoin {
                     pool_id: 1,
                     lower_tick: -200,
-                    upper_tick: 342000000,
+                    upper_tick: 2000,
                     // lower_tick: -108000000,
                     // upper_tick: 342000000,
-                    token_provided: Coin::new(1_000_000, UFOO),
+                    token_provided: Coin::new(100_000_000, UFOO),
                     token_min_amount0: Uint128::zero(),
                     token_min_amount1: Uint128::zero(),
                 },
@@ -72,18 +59,6 @@ mod tests {
                 &alice,
             )
             .unwrap();
-
-        // let resp = cl.query_liquidity_net_in_direction(&LiquidityNetInDirectionRequest {
-        //     token_in: UFOO.to_string(),
-        //     pool_id: 1,
-        //     bound_tick: -1100,
-        //     start_tick: 100,
-        //     use_cur_tick: true,
-        //     use_no_bound: true,
-        // });
-
-        // println!("{:?}", resp);
-        // println!();
 
         // Balance post
         let resp = t.bank.query_all_balances(&QueryAllBalancesRequest {
@@ -101,15 +76,7 @@ mod tests {
         println!("{:?}", pool);
         println!();
 
-        // // Query concentrated position that was just created
-        // let resp = cl.query_user_positions(&UserPositionsRequest {
-        //     address: alice.address(),
-        //     pool_id: 1,
-        //     pagination: None,
-        // });
-
-        // println!("{:?}", resp);
-        // println!();
+        // This leaves us with 7026 UFOO remaining
     }
 
     #[test]
@@ -120,7 +87,7 @@ mod tests {
 
         let alice = app
             .init_account(&[
-                Coin::new(1_000_000, UBAR),
+                Coin::new(100_000_000, UBAR),
                 Coin::new(1_000_000_000_000, "uosmo"),
             ])
             .unwrap();
@@ -146,28 +113,15 @@ mod tests {
         println!("{:?}", pool);
         println!();
 
-        // let resp = cl.query_liquidity_net_in_direction(&LiquidityNetInDirectionRequest {
-        //     token_in: UBAR.to_string(),
-        //     pool_id: 1,
-        //     bound_tick: -1100,
-        //     start_tick: 100,
-        //     use_cur_tick: true,
-        //     use_no_bound: true,
-        // });
-
-        // println!("{:?}", resp);
-        // println!();
-        // END: Debug lines for testing
-
         t.single_sided_lp_cl
             .execute(
                 &ExecuteMsg::SingleSidedSwapAndJoin {
                     pool_id: 1,
-                    lower_tick: -108000000,
-                    upper_tick: 342000,
+                    lower_tick: -200,
+                    upper_tick: 2000,
                     // lower_tick: -108000000,
                     // upper_tick: 342000000,
-                    token_provided: Coin::new(1_000_000, UBAR),
+                    token_provided: Coin::new(100_000_000, UBAR),
                     token_min_amount0: Uint128::zero(),
                     token_min_amount1: Uint128::zero(),
                 },
@@ -175,18 +129,6 @@ mod tests {
                 &alice,
             )
             .unwrap();
-
-        // let resp = cl.query_liquidity_net_in_direction(&LiquidityNetInDirectionRequest {
-        //     token_in: UBAR.to_string(),
-        //     pool_id: 1,
-        //     bound_tick: -1100,
-        //     start_tick: 100,
-        //     use_cur_tick: true,
-        //     use_no_bound: true,
-        // });
-
-        // println!("{:?}", resp);
-        // println!();
 
         // Balance post
         let resp = t.bank.query_all_balances(&QueryAllBalancesRequest {
@@ -204,15 +146,7 @@ mod tests {
         println!("{:?}", pool);
         println!();
 
-        // // Query concentrated position that was just created
-        // let resp = cl.query_user_positions(&UserPositionsRequest {
-        //     address: alice.address(),
-        //     pool_id: 1,
-        //     pagination: None,
-        // });
-
-        // println!("{:?}", resp);
-        // println!();
+        // This leaves us with 195804 UBAR remaining
     }
 
     #[test]
